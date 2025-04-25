@@ -1,0 +1,1902 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Physarum</title>
+  <style>
+    /* General Styling */
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #111;
+      display: flex;
+      height: 100vh;
+      font-family: sans-serif;
+      color: #eee;
+      font-size: 14px;
+      /* Base font size */
+    }
+
+    /* Control Panel Styling */
+    #controls {
+      width: 340px;
+      /* Slightly wider for new controls */
+      flex-shrink: 0;
+      padding: 20px;
+      background-color: #222;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      border-right: 1px solid #444;
+    }
+
+    #controls h3 {
+      margin-top: 10px;
+      margin-bottom: 10px;
+      color: #bbb;
+      font-size: 1.1em;
+      font-weight: bold;
+      border-bottom: 1px solid #555;
+      padding-bottom: 5px;
+    }
+
+    #controls label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.95em;
+      color: #ccc;
+    }
+
+    /* Grouping controls for alignment */
+    .control-group,
+    .slider-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+
+    .control-group label,
+    .slider-group label {
+      width: 130px;
+      /* Increased label width */
+      flex-shrink: 0;
+      text-align: right;
+      margin-right: 5px;
+    }
+
+    #controls input[type="number"],
+    #controls select {
+      width: 100px;
+      padding: 5px;
+      background-color: #333;
+      border: 1px solid #555;
+      color: #eee;
+      font-size: 0.9em;
+      border-radius: 3px;
+    }
+
+    #controls select {
+      min-width: 100px;
+      flex-grow: 1;
+    }
+
+    #controls input[type="range"] {
+      flex-grow: 1;
+      height: 6px;
+      cursor: pointer;
+      background: #444;
+      border-radius: 3px;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    #controls input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: #889;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    #controls input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      background: #889;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+    }
+
+    #controls .value-display {
+      font-size: 0.9em;
+      min-width: 45px;
+      text-align: right;
+      color: #ccc;
+      font-family: monospace;
+      background-color: #333;
+      padding: 3px 5px;
+      border-radius: 3px;
+      border: 1px solid #555;
+    }
+
+    #controls button {
+      padding: 10px 15px;
+      margin-top: 5px;
+      background-color: #4a5568;
+      border: 1px solid #718096;
+      color: #eee;
+      cursor: pointer;
+      transition: background-color 0.2s ease-in-out;
+      border-radius: 4px;
+      font-size: 0.95em;
+      font-weight: bold;
+    }
+
+    #controls button:hover {
+      background-color: #2d3748;
+    }
+
+    #controls .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    #controls .button-group button {
+      flex-grow: 1;
+      margin-top: 0;
+    }
+
+    /* Simulation Area Styling */
+    #simulation-container {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 15px;
+      min-width: 0;
+      position: relative;
+    }
+
+    canvas {
+      border: 1px solid #555;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      background-color: #000;
+      display: block;
+    }
+
+    #status {
+      position: absolute;
+      bottom: 5px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(34, 34, 34, 0.8);
+      color: #ccc;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 0.9em;
+      text-align: center;
+      white-space: nowrap;
+      z-index: 10;
+      font-family: monospace;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Control Panel -->
+  <div id="controls">
+    <h3>预设 (Presets)</h3>
+    <div class="control-group">
+      <label for="presetSelect">加载预设:</label>
+      <select id="presetSelect">
+        <option value="A">Preset A (Single)</option>
+        <option value="B">Preset B (Repel)</option>
+        <option value="C">Preset C (Point)</option>
+        <option value="D">Preset D (Complex)</option>
+      </select>
+    </div>
+
+    <h3>模拟控制 (Controls)</h3>
+    <button id="restartButton">应用设置并重启 (Apply & Restart)</button>
+    <div class="button-group">
+      <button id="pauseButton">暂停 (Pause)</button>
+    </div>
+
+    <h3>实时参数 (Live Parameters)</h3>
+    <div class="slider-group">
+      <label for="stepsPerFrame">步数/帧 (自适应):</label> <!-- Added Adaptive info -->
+      <input type="range" id="stepsPerFrame" min="1" max="10" value="2" step="1">
+      <span class="value-display" id="stepsPerFrameValue">2</span>
+    </div>
+    <div class="slider-group">
+      <label for="trailWeight">Trail Weight:</label>
+      <input type="range" id="trailWeight" min="0" max="20" value="8" step="0.1">
+      <span class="value-display" id="trailWeightValue">8.0</span>
+    </div>
+    <div class="slider-group">
+      <label for="decayRate">Decay Rate:</label>
+      <input type="range" id="decayRate" min="0" max="1" value="0.5" step="0.01">
+      <span class="value-display" id="decayRateValue">0.50</span>
+    </div>
+    <div class="slider-group">
+      <label for="diffuseRate">Diffuse Rate:</label>
+      <input type="range" id="diffuseRate" min="0" max="10" value="3" step="0.1">
+      <span class="value-display" id="diffuseRateValue">3.0</span>
+    </div>
+    <div class="slider-group">
+      <label for="randomSteerStrength">随机转向强度:</label>
+      <input type="range" id="randomSteerStrength" min="0" max="360" value="10" step="0.1">
+      <span class="value-display" id="randomSteerStrengthValue">10</span>
+    </div>
+    <div class="slider-group">
+      <label for="sleepThreshold">睡眠阈值:</label> <!-- New -->
+      <input type="range" id="sleepThreshold" min="0" max="1" value="0.01" step="0.001">
+      <span class="value-display" id="sleepThresholdValue">0.010</span>
+    </div>
+    <div class="slider-group">
+      <label for="wakeThreshold">唤醒阈值:</label> <!-- New -->
+      <input type="range" id="wakeThreshold" min="0" max="2" value="0.05" step="0.001">
+      <span class="value-display" id="wakeThresholdValue">0.050</span>
+    </div>
+    <div class="slider-group">
+      <label for="brightness">亮度:</label>
+      <input type="range" id="brightness" min="0" max="5" value="1" step="0.05">
+      <span class="value-display" id="brightnessValue">1.00</span>
+    </div>
+    <div class="slider-group">
+      <label for="contrast">对比度:</label>
+      <input type="range" id="contrast" min="0" max="5" value="1" step="0.05">
+      <span class="value-display" id="contrastValue">1.00</span>
+    </div>
+
+    <h3>模拟设置 (需要重启)</h3>
+    <div class="control-group">
+      <label for="numAgents">代理数量:</label>
+      <input type="number" id="numAgents" min="1000" max="1000000" value="250000" step="1000">
+    </div>
+    <div class="control-group">
+      <label for="width">宽度:</label>
+      <input type="number" id="width" min="128" max="3840" value="1920" step="16">
+    </div>
+    <div class="control-group">
+      <label for="height">高度:</label>
+      <input type="number" id="height" min="128" max="2160" value="1080" step="16">
+    </div>
+    <div class="control-group">
+      <label for="spawnMode">出生模式:</label>
+      <select id="spawnMode">
+        <option value="0">随机 (Random)</option>
+        <option value="1">点 (Point)</option>
+        <option value="2">内向圆 (InwardCircle)</option>
+        <option value="3">随机圆 (RandomCircle)</option>
+        <option value="4">边界内向 (Border Inward)</option>
+        <option value="5">方形随机 (Square Random)</option>
+        <option value="6">外向圆 (Outward Circle)</option>
+        <option value="7">随机集群 (Random Clusters)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Simulation Area -->
+  <div id="simulation-container">
+    <canvas id="glcanvas"></canvas>
+    <div id="status">Initializing...</div>
+  </div>
+
+
+  <!-- Agent Update Vertex Shader (with Agent Sleep logic) -->
+  <script id="agentUpdateVS" type="x-shader/x-vertex">#version 300 es
+    // Inputs: Agent state from VBO
+    // layout(location = 0) vec2 a_position; float a_angle; float a_speciesIndex; vec4 a_speciesMask; float a_status;
+    layout(location = 0) in vec2 a_position;       // Current position (X, Y)
+    layout(location = 1) in float a_angle;        // Current angle in radians
+    layout(location = 2) in float a_speciesIndex; // Integer index 0, 1, 2...
+    layout(location = 3) in vec4 a_speciesMask;   // One-hot encoding, e.g., vec4(1,0,0,0) for species 0
+    layout(location = 4) in float a_status;       // Agent status: 0.0 = active, 1.0 = sleeping
+
+    // Outputs: Updated agent state via Transform Feedback
+    // Matched to transformFeedbackVaryings in JS: ['v_out_position', 'v_out_angle', 'v_out_speciesIndex', 'v_out_speciesMask', 'v_out_status']
+    out vec2 v_out_position;
+    out float v_out_angle;
+    out float v_out_speciesIndex;
+    out vec4 v_out_speciesMask;
+    out float v_out_status; // Output new status (0.0 or 1.0)
+
+    // Uniforms: Simulation parameters
+    uniform sampler2D u_trailTexture;     // Current trail map (mipmapped)
+    uniform vec2 u_resolution;            // Simulation grid resolution (width, height)
+    uniform float u_deltaTime;            // Time step for this simulation substep
+    uniform float u_time;                 // Current simulation time (for random seed)
+    uniform float u_randomSteerStrength;  // How strongly random steering affects direction
+    uniform float u_sleepThreshold;       // Intensity below which agent might sleep
+    uniform float u_wakeThreshold;        // Intensity above which agent wakes up
+
+    // Species settings (arrays, indexed by speciesIndex)
+    const int MAX_SPECIES = 4;
+    uniform float u_moveSpeed[MAX_SPECIES];       // Pixels per second
+    uniform float u_turnSpeed[MAX_SPECIES];       // Degrees per second
+    uniform float u_sensorAngleDeg[MAX_SPECIES];  // Angle offset of side sensors (degrees)
+    uniform float u_sensorOffsetDst[MAX_SPECIES]; // Distance of sensors from agent center
+    uniform int u_sensorSize[MAX_SPECIES];        // Radius of sensor area (pixels, 0 means 1x1)
+
+    // Species Interaction Matrix (Col-major: how species_Col reacts to trail of species_Row)
+    // Example: u_speciesInteractionMatrix[1][0] = how species 1 reacts to species 0 trail
+    uniform mat4 u_speciesInteractionMatrix;
+
+    // Constants and Helpers
+    const float PI = 3.14159265359;
+    const float TWO_PI = 2.0 * PI;
+    const float DEG_TO_RAD = PI / 180.0;
+
+    // Simple Pseudo-Random Number Generator (PRNG) based on position and time
+    uint hash(uint state) {
+        state ^= 2747636419u; state *= 2654435769u; state ^= state >> 16;
+        state *= 2654435769u; state ^= state >> 16; state *= 2654435769u; return state;
+    }
+    float random(vec2 pos, float seed, uint id) {
+        // Combine position, seed, and agent ID for unique state
+        uint state = uint(pos.y * u_resolution.x + pos.x) + id + uint(seed * 100000.0);
+        state = hash(state);
+        // Convert uint to float in [0, 1] range
+        return float(state) / 4294967295.0;
+    }
+
+    // Sample trail map at a specific coordinate.
+    // Uses texture() which implicitly uses LOD 0 (highest resolution).
+    // Mipmaps primarily benefit the display shader or if textureLod() was used here.
+    vec4 sampleTrail(vec2 coord) {
+         vec2 uv = coord / u_resolution;
+         // Optional clamp to prevent sampling exactly at the edge if wrap mode isn't CLAMP_TO_EDGE
+         // uv = clamp(uv, vec2(0.001), vec2(0.999));
+         return texture(u_trailTexture, uv); // Samples LOD 0
+    }
+
+    // Sensor function: Samples the trail map in a small area ahead of the agent.
+    // Returns a weighted sum based on the species interaction matrix.
+    float sense(vec2 agentPos, float agentAngle, int speciesIdx, float sensorAngleOffsetRad) {
+         // Check for valid species index to prevent out-of-bounds access
+         if (speciesIdx < 0 || speciesIdx >= MAX_SPECIES) return 0.0;
+
+         float sensorOffset = u_sensorOffsetDst[speciesIdx];
+         int sensorRadius = u_sensorSize[speciesIdx];
+         if (sensorRadius < 0) sensorRadius = 0; // Ensure non-negative radius
+
+         // Calculate the absolute angle of the sensor
+         float sensorAngle = agentAngle + sensorAngleOffsetRad;
+         vec2 sensorDir = vec2(cos(sensorAngle), sin(sensorAngle));
+         vec2 sensorBasePos = agentPos + sensorDir * sensorOffset;
+
+         float weightedSum = 0.0;
+         // Get the interaction weights for the current species (how it reacts to others)
+         // u_speciesInteractionMatrix is column-major, so column 'speciesIdx' holds the weights.
+         vec4 interactionWeights = u_speciesInteractionMatrix[speciesIdx];
+
+         // Sample a square area around the sensor base position
+         vec2 sensorCenterPixel = floor(sensorBasePos + 0.5); // Pixel center nearest to sensor pos
+         for (int offsetX = -sensorRadius; offsetX <= sensorRadius; offsetX++) {
+            for (int offsetY = -sensorRadius; offsetY <= sensorRadius; offsetY++) {
+                vec2 sampleCoord = sensorCenterPixel + vec2(float(offsetX), float(offsetY));
+                // Sample the trail map (RGBA = trails of species 0, 1, 2, 3)
+                vec4 trailSample = sampleTrail(sampleCoord);
+                // Apply interaction weights: dot product calculates weighted sum efficiently
+                weightedSum += dot(interactionWeights, trailSample);
+            }
+        }
+        // Normalize the sum by the number of samples taken? Optional, depends on desired sensitivity.
+        // float numSamples = float((2 * sensorRadius + 1) * (2 * sensorRadius + 1));
+        // return weightedSum / numSamples;
+        return weightedSum;
+    }
+
+    // Helper to check the maximum trail intensity directly at the agent's current position.
+    // Used for sleep/wake decisions.
+    float checkLocalIntensity(vec2 pos) {
+        vec4 s = sampleTrail(pos);
+        // Find the maximum value among the RGBA channels
+        return max(max(s.r, s.g), max(s.b, s.a));
+    }
+
+
+    void main() {
+        // Read current agent state
+        vec2 currentPos = a_position;
+        float currentAngle = a_angle;
+        int speciesIdx = int(a_speciesIndex);
+        vec4 speciesMask = a_speciesMask;
+        float currentStatus = a_status; // 0.0 = active, 1.0 = sleeping
+        uint agentID = uint(gl_VertexID); // Unique ID for PRNG
+
+        // Initialize output status (default: keep current status unless changed)
+        v_out_status = currentStatus;
+        // Pass through species info (only changes if logic requires it, which it doesn't here)
+        v_out_speciesIndex = a_speciesIndex;
+        v_out_speciesMask = speciesMask;
+
+        // Exit early if species index is invalid (shouldn't happen with proper setup)
+        if (speciesIdx < 0 || speciesIdx >= MAX_SPECIES) {
+             v_out_position = currentPos; // Keep position
+             v_out_angle = currentAngle;   // Keep angle
+             // Status, speciesIndex, speciesMask already set
+             return;
+        }
+
+        // --- Wake/Sleep Check ---
+        float localIntensity = checkLocalIntensity(currentPos);
+
+        if (currentStatus > 0.5) { // If currently sleeping (status == 1.0)
+            if (localIntensity > u_wakeThreshold) {
+                // Wake up! Agent will perform full update below.
+                v_out_status = 0.0;
+            } else {
+                // Still sleeping: Perform simplified move (drift) and exit early.
+                float speed = u_moveSpeed[speciesIdx] * 0.1; // Reduced speed while sleeping
+                vec2 direction = vec2(cos(currentAngle), sin(currentAngle));
+                vec2 nextPos = currentPos + direction * speed * u_deltaTime;
+
+                // Boundary check (still necessary even when sleeping!)
+                bool hitBoundary = false;
+                if (nextPos.x < 0.0 || nextPos.x >= u_resolution.x) { nextPos.x = max(0.0, min(u_resolution.x - 1.0, nextPos.x)); hitBoundary = true; }
+                if (nextPos.y < 0.0 || nextPos.y >= u_resolution.y) { nextPos.y = max(0.0, min(u_resolution.y - 1.0, nextPos.y)); hitBoundary = true; }
+
+                if (hitBoundary) {
+                     // Turn randomly upon hitting boundary
+                     float boundaryRandomVal = random(nextPos, u_time + 0.5, agentID + 1u);
+                     currentAngle = boundaryRandomVal * TWO_PI; // Update angle for next frame
+                }
+
+                // Output simplified state (position updated, angle potentially updated)
+                v_out_position = nextPos;
+                v_out_angle = currentAngle;
+                // Status, speciesIndex, speciesMask already set (status = 1.0)
+                return; // --- Exit early for sleeping agents ---
+            }
+        }
+
+        // --- Full Update Logic (Agent is Active or Just Woke Up) ---
+        // Note: If agent just woke up (v_out_status changed to 0.0 above), it proceeds here.
+
+        // --- 1. Sense ---
+        float sensorAngleRad = u_sensorAngleDeg[speciesIdx] * DEG_TO_RAD;
+        float weightForward = sense(currentPos, currentAngle, speciesIdx, 0.0);           // Sensor straight ahead
+        float weightLeft    = sense(currentPos, currentAngle, speciesIdx, sensorAngleRad); // Sensor to the left
+        float weightRight   = sense(currentPos, currentAngle, speciesIdx, -sensorAngleRad);// Sensor to the right
+
+        // --- 2. Steer ---
+        float nextAngle = currentAngle;
+        float turnSpeedRadPerSec = u_turnSpeed[speciesIdx] * DEG_TO_RAD;
+        float maxTurnAmount = abs(turnSpeedRadPerSec * u_deltaTime); // Max turn allowed this step
+        float randomSteerVal = random(currentPos, u_time, agentID); // Random value [0, 1]
+
+        // Calculate steering adjustments based on sensor readings
+        float steerAmount = 0.0;
+        if (weightForward > weightLeft && weightForward > weightRight) {
+            // Trail ahead is strongest, maybe add slight random wobble
+             steerAmount = (randomSteerVal - 0.5) * 2.0 * maxTurnAmount * u_randomSteerStrength * 0.1; // Less random turn when going straight
+        } else if (weightForward < weightLeft && weightForward < weightRight) {
+             // Trail behind or equally weak on sides, turn more randomly
+             steerAmount = (randomSteerVal - 0.5) * 2.0 * maxTurnAmount * u_randomSteerStrength;
+        } else if (weightRight > weightLeft) {
+            // Turn right towards stronger trail
+             steerAmount = -maxTurnAmount; // Turn full speed
+             steerAmount -= randomSteerVal * maxTurnAmount * u_randomSteerStrength; // Add random component (making it potentially turn less right or even slightly left)
+        } else if (weightLeft > weightRight) {
+            // Turn left towards stronger trail
+             steerAmount = maxTurnAmount; // Turn full speed
+             steerAmount += randomSteerVal * maxTurnAmount * u_randomSteerStrength; // Add random component
+        }
+        // Apply the calculated turn, clamping magnitude if needed (though maxTurnAmount already limits it)
+        nextAngle += steerAmount; // Using += implicitly handles wrap-around via cos/sin later
+
+        // --- 3. Move ---
+        vec2 direction = vec2(cos(nextAngle), sin(nextAngle));
+        float speed = u_moveSpeed[speciesIdx];
+        vec2 nextPos = currentPos + direction * speed * u_deltaTime;
+
+        // --- 4. Boundary Handling ---
+        bool hitBoundary = false;
+        if (nextPos.x < 0.0 || nextPos.x >= u_resolution.x) { nextPos.x = max(0.0, min(u_resolution.x - 1.0, nextPos.x)); hitBoundary = true; }
+        if (nextPos.y < 0.0 || nextPos.y >= u_resolution.y) { nextPos.y = max(0.0, min(u_resolution.y - 1.0, nextPos.y)); hitBoundary = true; }
+
+        if (hitBoundary) {
+             // Turn randomly upon hitting boundary
+             float boundaryRandomVal = random(nextPos, u_time + 0.5, agentID + 1u);
+             nextAngle = boundaryRandomVal * TWO_PI; // Set a new random angle
+        }
+
+        // --- 5. Check if should go to sleep (only if currently active or just woke) ---
+        // Use a combined measure: check local intensity AND intensity in sensed area.
+        // If both are low, go to sleep.
+        float sensedIntensity = abs(weightForward) + abs(weightLeft) + abs(weightRight); // Example heuristic for sensed area intensity
+        // Threshold comparison: go to sleep only if both local and sensed intensities are low.
+        if (localIntensity < u_sleepThreshold && sensedIntensity < u_sleepThreshold * 3.0) { // Sensed threshold can be higher
+             v_out_status = 1.0; // Go to sleep next frame
+        } else {
+             v_out_status = 0.0; // Stay active (or confirm wake-up)
+        }
+
+        // --- 6. Output ---
+        v_out_position = nextPos;
+        v_out_angle = nextAngle; // Angle potentially updated by steering or boundary hit
+        // Status, speciesIndex, speciesMask already set
+    }
+  </script>
+
+  <!-- Agent Update Fragment Shader (Dummy - Not used with RASTERIZER_DISCARD) -->
+  <script id="agentUpdateFS" type="x-shader/x-fragment">#version 300 es
+    precision highp float;
+    void main() {
+        // This shader is executed when RASTERIZER_DISCARD is disabled,
+        // but we don't need to output anything. Transform Feedback handles the output.
+        discard; // Explicitly discard the fragment
+    }
+  </script>
+
+  <!-- Agent Deposit Vertex Shader -->
+  <script id="agentDepositVS" type="x-shader/x-vertex">#version 300 es
+    // Input: Agent state from the *updated* buffer (written by Agent Update TF)
+    // We only need position and species mask for depositing.
+    // Attribute locations match the *output* of the previous stage (and the buffer layout).
+    layout(location = 0) in vec2 a_position;    // Updated position (Offset 0 in buffer)
+    layout(location = 3) in vec4 a_speciesMask; // Species mask (Offset 16 in buffer)
+    // We don't need angle, speciesIndex, or status for depositing.
+
+    uniform vec2 u_resolution; // Simulation grid resolution
+    flat out vec4 v_speciesMask; // Pass species mask to fragment shader (flat = no interpolation)
+
+    void main() {
+        v_speciesMask = a_speciesMask; // Pass the mask through
+
+        // Convert agent position (pixels) to Normalized Device Coordinates (NDC) [-1, 1]
+        // Add 0.5 to move from pixel center to UV coordinate space [0, 1]
+        vec2 normalizedPos = (a_position + 0.5) / u_resolution;
+        // Convert UV [0, 1] to NDC [-1, 1]
+        vec2 ndcPos = normalizedPos * 2.0 - 1.0;
+
+        // Output vertex position in NDC. Z=0, W=1.
+        gl_Position = vec4(ndcPos, 0.0, 1.0);
+        // Set point size (although we render 1x1 pixel fragments)
+        gl_PointSize = 1.0;
+    }
+  </script>
+
+  <!-- Agent Deposit Fragment Shader -->
+  <script id="agentDepositFS" type="x-shader/x-fragment">#version 300 es
+    precision highp float;
+
+    // Input from vertex shader (flat means it uses the value from the provoking vertex, no interpolation)
+    flat in vec4 v_speciesMask; // One-hot encoding, e.g., (1,0,0,0)
+
+    // Uniforms
+    uniform float u_trailWeight; // Strength of deposit per agent per second
+    uniform float u_deltaTime;   // Time step for this simulation substep
+
+    // Output color to the framebuffer (trail texture)
+    out vec4 fragColor;
+
+    void main() {
+        // The output color is the species mask scaled by the deposit weight and delta time.
+        // This value will be added to the existing trail map via additive blending.
+        // Example: If mask is (1,0,0,0), output is (weight*dt, 0, 0, 0)
+        fragColor = v_speciesMask * u_trailWeight * u_deltaTime;
+    }
+  </script>
+
+  <!-- Trail Process Vertex Shader (Fullscreen Quad - Used for both Hrz and Vrt passes) -->
+  <script id="trailProcessVS" type="x-shader/x-vertex">#version 300 es
+    // Input: Predefined quad vertices (usually -1 to 1)
+    layout(location = 0) in vec2 a_quadPosition; // NDC coordinates (-1 to 1)
+
+    // Output: Texture coordinates (0 to 1) for the fragment shader
+    out vec2 v_texCoord;
+
+    void main() {
+        // Pass the NDC position directly as gl_Position
+        gl_Position = vec4(a_quadPosition, 0.0, 1.0);
+        // Convert NDC [-1, 1] to texture coordinates [0, 1]
+        v_texCoord = a_quadPosition * 0.5 + 0.5;
+    }
+  </script>
+
+  <!-- Trail Process Fragment Shader - Pass 1: Horizontal Blur -->
+  <script id="trailProcessHrzFS" type="x-shader/x-fragment">#version 300 es
+    precision highp float;
+
+    // Input: Interpolated texture coordinates from vertex shader
+    in vec2 v_texCoord;
+
+    // Uniforms
+    uniform sampler2D u_inputTrailTexture; // Texture to read from (output of deposit stage)
+    uniform vec2 u_resolution;             // Simulation grid resolution
+    uniform float u_deltaTime;             // Time step for this simulation substep
+    uniform float u_diffuseRate;           // Diffusion strength factor
+
+    // Output color to the framebuffer (temporary texture)
+    out vec4 fragColor;
+
+    void main() {
+        // Calculate the UV offset for one pixel horizontally
+        vec2 onePixel = vec2(1.0 / u_resolution.x, 0.0);
+
+        // Sample the center and horizontal neighbors
+        vec4 colorCenter = texture(u_inputTrailTexture, v_texCoord);
+        vec4 colorLeft   = texture(u_inputTrailTexture, v_texCoord - onePixel);
+        vec4 colorRight  = texture(u_inputTrailTexture, v_texCoord + onePixel);
+
+        // Simple 3-tap box blur in the horizontal direction
+        vec4 hBlurSum = colorLeft + colorCenter + colorRight;
+        vec4 blurredColor = hBlurSum / 3.0;
+
+        // Blend between original color and blurred color based on diffuseRate and deltaTime
+        // This applies the diffusion effect for this step.
+        float diffuseWeight = clamp(u_diffuseRate * u_deltaTime, 0.0, 1.0); // Ensure weight is [0, 1]
+        fragColor = mix(colorCenter, blurredColor, diffuseWeight); // Linear interpolation
+    }
+  </script>
+
+  <!-- Trail Process Fragment Shader - Pass 2: Vertical Blur, Decay, Clamp -->
+  <script id="trailProcessVrtFS" type="x-shader/x-fragment">#version 300 es
+    precision highp float;
+
+    // Input: Interpolated texture coordinates from vertex shader
+    in vec2 v_texCoord;
+
+    // Uniforms
+    uniform sampler2D u_horizontalPassTexture; // Texture to read from (output of horizontal pass)
+    uniform vec2 u_resolution;                 // Simulation grid resolution
+    uniform float u_deltaTime;                 // Time step for this simulation substep
+    uniform float u_decayRate;                 // Trail decay rate per second
+    uniform float u_diffuseRate;               // Diffusion strength factor (used again for vertical pass)
+
+    // Output color to the framebuffer (final trail texture for this step)
+    out vec4 fragColor;
+
+    void main() {
+        // Calculate the UV offset for one pixel vertically
+        vec2 onePixel = vec2(0.0, 1.0 / u_resolution.y);
+
+        // Sample the center (result of horizontal pass) and vertical neighbors
+        vec4 colorCenter = texture(u_horizontalPassTexture, v_texCoord);
+        vec4 colorUp     = texture(u_horizontalPassTexture, v_texCoord - onePixel); // Tex coords usually origin top-left
+        vec4 colorDown   = texture(u_horizontalPassTexture, v_texCoord + onePixel);
+
+        // Simple 3-tap box blur in the vertical direction
+        vec4 vBlurSum = colorUp + colorCenter + colorDown;
+        vec4 blurredColor = vBlurSum / 3.0;
+
+        // Blend between horizontal pass color and vertically blurred color
+        // This completes the separable blur diffusion effect.
+        float diffuseWeight = clamp(u_diffuseRate * u_deltaTime, 0.0, 1.0);
+        vec4 diffusedColor = mix(colorCenter, blurredColor, diffuseWeight);
+
+        // Apply trail decay
+        // Subtract decay amount, ensuring result doesn't go below zero.
+        vec4 decayedColor = max(vec4(0.0), diffusedColor - u_decayRate * u_deltaTime);
+
+        // Clamp the final color to the valid range [0, 1] (optional, but good practice for stability)
+        vec4 finalColor = clamp(decayedColor, 0.0, 1.0);
+
+        fragColor = finalColor;
+    }
+  </script>
+
+  <!-- Display Vertex Shader (Fullscreen Quad) -->
+  <script id="displayVS" type="x-shader/x-vertex">#version 300 es
+    // Input: Predefined quad vertices
+    layout(location = 0) in vec2 a_quadPosition; // NDC coordinates (-1 to 1)
+
+    // Output: Texture coordinates (0 to 1) for the fragment shader
+    out vec2 v_texCoord;
+
+    void main() {
+        // Pass the NDC position directly
+        gl_Position = vec4(a_quadPosition, 0.0, 1.0);
+        // Convert NDC [-1, 1] to texture coordinates [0, 1]
+        v_texCoord = a_quadPosition * 0.5 + 0.5;
+    }
+  </script>
+
+  <!-- Display Fragment Shader (Renders final trail map to canvas) -->
+  <script id="displayFS" type="x-shader/x-fragment">#version 300 es
+  precision highp float;
+
+  // Input: Interpolated texture coordinates
+  in vec2 v_texCoord;
+
+  // Output: Final color to the screen
+  out vec4 fragColor;
+
+  // Uniforms
+  uniform sampler2D u_trailTexture; // Final trail map texture (mipmapped)
+  const int MAX_SPECIES = 4;
+  uniform vec4 u_speciesColor[MAX_SPECIES]; // Colors for each species (RGBA)
+  uniform int u_numSpecies;                 // Actual number of species used
+  uniform float u_brightness;               // Brightness multiplier
+  uniform float u_contrast;                 // Contrast adjustment factor
+
+  // Contrast adjustment function: Applies S-curve like effect
+  vec3 adjustContrast(vec3 color, float contrast) {
+       // Ensure contrast is non-negative
+       float safeContrast = max(0.0, contrast);
+       // Formula: pivot around 0.5 gray
+       return 0.5 + (color - 0.5) * safeContrast;
+  }
+
+  void main() {
+      // Sample the final trail map.
+      // If the texture's MIN_FILTER uses mipmaps, the GPU selects the appropriate LOD.
+      vec4 trailMapValue = texture(u_trailTexture, v_texCoord);
+
+      // Blend species colors based on trail intensity
+      vec3 weightedColorSum = vec3(0.0);
+      float totalIntensity = 0.0;
+
+      // Accumulate weighted color and total intensity for active species
+      // Unrolling this loop might be slightly faster, but this is clearer.
+      for(int i = 0; i < MAX_SPECIES; ++i) {
+          if (i < u_numSpecies) {
+              // trailMapValue components correspond to species: .r=S0, .g=S1, .b=S2, .a=S3
+              float intensity = 0.0;
+              if (i == 0) intensity = trailMapValue.r;
+              else if (i == 1) intensity = trailMapValue.g;
+              else if (i == 2) intensity = trailMapValue.b;
+              else if (i == 3) intensity = trailMapValue.a;
+
+              weightedColorSum += u_speciesColor[i].rgb * intensity;
+              totalIntensity += intensity;
+          }
+      }
+
+      vec3 mixedColor = vec3(0.0);
+      // Avoid division by zero if total intensity is negligible
+      if (totalIntensity > 0.0001) {
+          // Normalize the weighted color sum by total intensity
+          mixedColor = weightedColorSum / totalIntensity;
+          // Modulate the blended color by the overall intensity (acts like opacity)
+          // Clamp intensity to prevent overly bright colors if trail values exceed 1 (though they shouldn't with decay)
+          mixedColor *= clamp(totalIntensity, 0.0, 1.0);
+      }
+
+      // Apply brightness and contrast
+      vec3 finalRgb = mixedColor * u_brightness;
+      finalRgb = adjustContrast(finalRgb, u_contrast);
+
+      // Final output color, clamped to [0, 1] range, with full alpha
+      fragColor = vec4(clamp(finalRgb, 0.0, 1.0), 1.0);
+  }
+  </script>
+
+  <script>
+    'use strict';
+
+    // --- Simulation Presets ---
+    const simulationPresets = {
+      "A": {
+        name: "Preset A", stepsPerFrame: 2, width: 1920, height: 1080, numAgents: 250000, spawnMode: 2, trailWeight: 5.0, decayRate: 0.2, diffuseRate: 3.0, randomSteerStrength: 32, sleepThreshold: 0.01, wakeThreshold: 0.05, brightness: 1.0, contrast: 1.0,
+        species: [{ moveSpeed: 20.0, turnSpeed: 20.0, sensorAngleDeg: 30.0, sensorOffsetDst: 35.0, sensorSize: 1, colour: { r: 1.0, g: 1.0, b: 1.0, a: 1.0 } }],
+        interactionMatrix: [[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]
+      },
+      "B": {
+        name: "Preset B", stepsPerFrame: 2, width: 1920, height: 1080, numAgents: 250000, spawnMode: 2, trailWeight: 8.0, decayRate: 0.5, diffuseRate: 3.0, randomSteerStrength: 32, sleepThreshold: 0.01, wakeThreshold: 0.05, brightness: 1.0, contrast: 1.0,
+        species: [{ moveSpeed: 50.0, turnSpeed: 30.0, sensorAngleDeg: 45.0, sensorOffsetDst: 20.0, sensorSize: 1, colour: { r: 1.0, g: 0.06, b: 0.16, a: 1.0 } }, { moveSpeed: 50.0, turnSpeed: -90.0, sensorAngleDeg: 112.0, sensorOffsetDst: 30.0, sensorSize: 1, colour: { r: 0.47, g: 0.83, b: 0.11, a: 1.0 } }],
+        interactionMatrix: [[1.0, -1.0, 0.0, 0.0], [-1.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]
+      },
+      "C": {
+        name: "Preset C", stepsPerFrame: 2, width: 1920, height: 1080, numAgents: 250000, spawnMode: 1, trailWeight: 2.0, decayRate: 0.75, diffuseRate: 5.0, randomSteerStrength: 32, sleepThreshold: 0.01, wakeThreshold: 0.05, brightness: 1.0, contrast: 1.0,
+        species: [{ moveSpeed: 30.0, turnSpeed: -30.0, sensorAngleDeg: 112.0, sensorOffsetDst: 20.0, sensorSize: 1, colour: { r: 0.0, g: 1.0, b: 0.31, a: 1.0 } }],
+        interactionMatrix: [[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]
+      },
+      "D": {
+        name: "Preset D", stepsPerFrame: 2, width: 1920, height: 1080, numAgents: 150000, spawnMode: 2, trailWeight: 12.0, decayRate: 0.5, diffuseRate: 3.0, randomSteerStrength: 32, sleepThreshold: 0.01, wakeThreshold: 0.05, brightness: 1.0, contrast: 1.0,
+        species: [
+          { moveSpeed: 70.0, turnSpeed: 30.0, sensorAngleDeg: 60.0, sensorOffsetDst: 20.0, sensorSize: 1, colour: { r: 0.54, g: 0.06, b: 1.0, a: 1.0 } },
+          { moveSpeed: 50.0, turnSpeed: -90.0, sensorAngleDeg: 112.0, sensorOffsetDst: 30.0, sensorSize: 1, colour: { r: 0.11, g: 0.62, b: 0.83, a: 1.0 } },
+          { moveSpeed: 50.0, turnSpeed: 50.0, sensorAngleDeg: 70.0, sensorOffsetDst: 30.0, sensorSize: 1, colour: { r: 0.47, g: 0.83, b: 0.11, a: 1.0 } }
+        ],
+        interactionMatrix: [ // Col-Major order: [S0->S0, S1->S0, S2->S0, S3->S0], [S0->S1, S1->S1, S2->S1, S3->S1], ...
+          // Row-Major in config for easier reading: How Sx reacts to Sy trail
+          [1.0, -0.8, 0.5, 0.0],   // How S0 reacts to S0, S1, S2, S3
+          [-0.6, 1.0, -0.9, 0.0],  // How S1 reacts to S0, S1, S2, S3
+          [-0.5, 0.7, 1.0, 0.0],   // How S2 reacts to S0, S1, S2, S3
+          [0.0, 0.0, 0.0, 0.0]    // How S3 reacts to S0, S1, S2, S3
+        ]
+      }
+    };
+
+    // --- Global Variables ---
+    let gl = null;                    // WebGL Rendering Context
+    let canvas = null;                // HTML Canvas Element
+    let statusSpan = null;            // HTML Span for status messages
+    let currentSettings = {};         // Holds the active simulation parameters
+    let isPaused = false;             // Simulation pause state
+    let isInitialized = false;        // Flag indicating successful initialization
+    let animationFrameId = null;      // ID for canceling animation frame requests
+
+    // WebGL Resources
+    let agentUpdateProgram = null;    // Shader program for updating agent state
+    let agentDepositProgram = null;   // Shader program for depositing trail
+    let trailProcessHrzProgram = null;// Shader program for horizontal blur pass
+    let trailProcessVrtProgram = null;// Shader program for vertical blur + decay pass
+    let displayProgram = null;        // Shader program for rendering to canvas
+    let agentUpdateLocations = {};    // Uniform/attribute locations for agent update
+    let agentDepositLocations = {};   // Uniform/attribute locations for agent deposit
+    let trailProcessHrzLocations = {};// Uniform/attribute locations for horizontal pass
+    let trailProcessVrtLocations = {};// Uniform/attribute locations for vertical pass
+    let displayLocations = {};        // Uniform/attribute locations for display pass
+    let agentBuffers = [null, null];  // Ping-pong buffers for agent data (VBOs)
+    let agentVAOs = [null, null];     // Ping-pong Vertex Array Objects for agent data
+    let trailTextures = [null, null]; // Ping-pong textures for the trail map
+    let trailFBOs = [null, null];     // Framebuffer Objects for rendering to trail textures
+    let tempTrailTexture = null;      // Temporary texture for separable blur intermediate result
+    let tempTrailFBO = null;          // FBO for the temporary texture
+    let quadVBO = null;               // Vertex Buffer Object for the fullscreen quad
+    let quadVAO = null;               // Vertex Array Object for the fullscreen quad
+    let agentTransformFeedback = null;// Transform Feedback object for agent updates
+
+    // Simulation state
+    let readIndex = 0;                // Index of the buffer/texture to read from (0 or 1)
+    let writeIndex = 1;               // Index of the buffer/texture to write to (1 or 0)
+    let lastTime = 0;                 // Timestamp of the previous frame
+    let currentTime = 0;              // Timestamp of the current frame
+    let frameCount = 0;               // Counter for FPS calculation
+    let fps = 0;                      // Calculated Frames Per Second
+    let lastFpsUpdateTime = 0;        // Timestamp when FPS was last updated
+    const TARGET_FPS = 60;            // Target FPS for adaptive step adjustment
+    const MAX_STEPS = 10;             // Max simulation steps per frame for adaptive control
+    const MIN_STEPS = 1;              // Min simulation steps per frame for adaptive control
+
+    // Pre-calculated uniform arrays (to avoid allocation in the loop)
+    const MAX_SPECIES = 4;            // Maximum supported species count
+    let speciesMoveSpeed = new Float32Array(MAX_SPECIES);
+    let speciesTurnSpeed = new Float32Array(MAX_SPECIES);
+    let speciesSensorAngle = new Float32Array(MAX_SPECIES);
+    let speciesSensorOffset = new Float32Array(MAX_SPECIES);
+    let speciesSensorSize = new Int32Array(MAX_SPECIES);
+    let speciesColorData = new Float32Array(MAX_SPECIES * 4); // RGBA packed
+    let speciesInteractionMatrixData = new Float32Array(16); // 4x4 matrix packed col-major
+
+    // --- Helper Functions ---
+    /**
+     * Loads and compiles a shader.
+     * @param {WebGL2RenderingContext} gl The WebGL context.
+     * @param {number} type The shader type (gl.VERTEX_SHADER or gl.FRAGMENT_SHADER).
+     * @param {string} source The shader source code.
+     * @returns {WebGLShader} The compiled shader.
+     * @throws {Error} If compilation fails.
+     */
+    function loadShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const shaderType = type === gl.VERTEX_SHADER ? 'Vertex' : 'Fragment';
+        const msg = `Error compiling ${shaderType} shader: ${gl.getShaderInfoLog(shader)}`;
+        console.error(msg);
+        console.log('Shader source:\n', source); // Log shader source on error
+        gl.deleteShader(shader);
+        throw new Error(msg);
+      }
+      return shader;
+    }
+
+    /**
+     * Initializes a shader program, links shaders, and optionally sets up transform feedback.
+     * @param {WebGL2RenderingContext} gl The WebGL context.
+     * @param {string} vsSource Vertex shader source.
+     * @param {string} fsSource Fragment shader source.
+     * @param {string[]} [transformFeedbackVaryings=null] Array of varying names for transform feedback.
+     * @returns {WebGLProgram} The linked shader program.
+     * @throws {Error} If linking fails.
+     */
+    function initShaderProgram(gl, vsSource, fsSource, transformFeedbackVaryings = null) {
+      const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+      const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+      const shaderProgram = gl.createProgram();
+      gl.attachShader(shaderProgram, vertexShader);
+      gl.attachShader(shaderProgram, fragmentShader);
+
+      // Setup Transform Feedback *before* linking
+      if (transformFeedbackVaryings && transformFeedbackVaryings.length > 0) {
+        gl.transformFeedbackVaryings(
+          shaderProgram,
+          transformFeedbackVaryings,
+          gl.INTERLEAVED_ATTRIBS // Store varyings interleaved in one buffer
+        );
+        console.log("Set Transform Feedback Varyings:", transformFeedbackVaryings);
+      }
+
+      gl.linkProgram(shaderProgram);
+
+      if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+        const msg = `Error linking program: ${gl.getProgramInfoLog(shaderProgram)}`;
+        console.error(msg);
+        gl.deleteProgram(shaderProgram);
+        gl.deleteShader(vertexShader); // Clean up shaders even on link error
+        gl.deleteShader(fragmentShader);
+        throw new Error(msg);
+      }
+
+      // Detach and delete shaders after successful linking (they are no longer needed)
+      gl.detachShader(shaderProgram, vertexShader);
+      gl.detachShader(shaderProgram, fragmentShader);
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+
+      return shaderProgram;
+    }
+
+
+    /**
+     * Creates a WebGL texture.
+     * @param {WebGL2RenderingContext} gl The WebGL context.
+     * @param {number} width Texture width.
+     * @param {number} height Texture height.
+     * @param {number} internalFormat Internal format (e.g., gl.RGBA16F).
+     * @param {number} format Format (e.g., gl.RGBA).
+     * @param {number} type Data type (e.g., gl.HALF_FLOAT).
+     * @param {number} [filter=gl.NEAREST] Texture filtering (gl.NEAREST or gl.LINEAR).
+     * @param {number} [wrap=gl.CLAMP_TO_EDGE] Texture wrapping mode.
+     * @param {boolean} [useMipmap=false] Whether to generate and use mipmaps.
+     * @returns {WebGLTexture} The created texture.
+     */
+    function createTexture(gl, width, height, internalFormat, format, type, filter = gl.NEAREST, wrap = gl.CLAMP_TO_EDGE, useMipmap = false) {
+      const texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      // Allocate texture memory on the GPU
+      gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, width, height, 0, format, type, null);
+
+      // Determine appropriate minification filter based on mipmap usage
+      // Use LINEAR_MIPMAP_LINEAR for best quality when mipmaps are enabled.
+      const minFilter = useMipmap ? gl.LINEAR_MIPMAP_LINEAR : filter;
+      const magFilter = filter; // Magnification doesn't use mipmaps
+
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrap);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrap);
+
+      // Generate mipmaps if requested
+      if (useMipmap) {
+        gl.generateMipmap(gl.TEXTURE_2D);
+        console.log("Generated mipmaps for a texture.");
+      }
+
+      // Unbind texture
+      gl.bindTexture(gl.TEXTURE_2D, null);
+      return texture;
+    }
+
+    /**
+     * Creates a Framebuffer Object (FBO) and attaches a texture to it.
+     * @param {WebGL2RenderingContext} gl The WebGL context.
+     * @param {WebGLTexture} texture The texture to attach.
+     * @returns {WebGLFramebuffer} The created FBO.
+     * @throws {Error} If FBO creation is incomplete.
+     */
+    function createFramebuffer(gl, texture) {
+      const fbo = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      // Attach the texture as the FBO's color attachment
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0); // Attach mip level 0
+
+      // Check if the framebuffer is complete
+      const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+      if (status !== gl.FRAMEBUFFER_COMPLETE) {
+        const msg = `Framebuffer incomplete: Status 0x${status.toString(16)}`;
+        console.error(msg);
+        gl.deleteFramebuffer(fbo); // Clean up partially created FBO
+        throw new Error(msg);
+      }
+
+      // Unbind FBO
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      return fbo;
+    }
+
+    // --- UI Update Functions ---
+    /** Updates all UI control elements based on the currentSettings object. */
+    function updateUIControls() {
+      // Find the preset key matching the current settings name, default to 'A'
+      const presetKey = Object.keys(simulationPresets).find(key => simulationPresets[key].name === currentSettings.name) || 'A';
+      document.getElementById('presetSelect').value = presetKey;
+
+      // Update sliders and their value displays
+      document.getElementById('stepsPerFrame').value = currentSettings.stepsPerFrame;
+      document.getElementById('stepsPerFrameValue').textContent = currentSettings.stepsPerFrame;
+      document.getElementById('trailWeight').value = currentSettings.trailWeight;
+      document.getElementById('trailWeightValue').textContent = currentSettings.trailWeight.toFixed(1);
+      document.getElementById('decayRate').value = currentSettings.decayRate;
+      document.getElementById('decayRateValue').textContent = currentSettings.decayRate.toFixed(2);
+      document.getElementById('diffuseRate').value = currentSettings.diffuseRate;
+      document.getElementById('diffuseRateValue').textContent = currentSettings.diffuseRate.toFixed(1);
+      document.getElementById('randomSteerStrength').value = currentSettings.randomSteerStrength;
+      document.getElementById('randomSteerStrengthValue').textContent = currentSettings.randomSteerStrength.toFixed(1);
+      document.getElementById('sleepThreshold').value = currentSettings.sleepThreshold;
+      document.getElementById('sleepThresholdValue').textContent = currentSettings.sleepThreshold.toFixed(3);
+      document.getElementById('wakeThreshold').value = currentSettings.wakeThreshold;
+      document.getElementById('wakeThresholdValue').textContent = currentSettings.wakeThreshold.toFixed(3);
+      document.getElementById('brightness').value = currentSettings.brightness;
+      document.getElementById('brightnessValue').textContent = currentSettings.brightness.toFixed(2);
+      document.getElementById('contrast').value = currentSettings.contrast;
+      document.getElementById('contrastValue').textContent = currentSettings.contrast.toFixed(2);
+
+      // Update settings requiring restart
+      document.getElementById('numAgents').value = currentSettings.numAgents;
+      document.getElementById('width').value = currentSettings.width;
+      document.getElementById('height').value = currentSettings.height;
+      document.getElementById('spawnMode').value = currentSettings.spawnMode;
+    }
+
+    /** Reads values from "Live Parameters" UI controls and updates currentSettings. */
+    function updateLiveSettingsFromUI() {
+      const stepsPerFrame = parseInt(document.getElementById('stepsPerFrame').value, 10);
+      const trailWeight = parseFloat(document.getElementById('trailWeight').value);
+      const decayRate = parseFloat(document.getElementById('decayRate').value);
+      const diffuseRate = parseFloat(document.getElementById('diffuseRate').value);
+      const randomSteerStrength = parseFloat(document.getElementById('randomSteerStrength').value);
+      const sleepThreshold = parseFloat(document.getElementById('sleepThreshold').value);
+      const wakeThreshold = parseFloat(document.getElementById('wakeThreshold').value);
+      const brightness = parseFloat(document.getElementById('brightness').value);
+      const contrast = parseFloat(document.getElementById('contrast').value);
+
+      // Update stepsPerFrame setting (manual override for adaptive control)
+      if (!isNaN(stepsPerFrame) && stepsPerFrame >= MIN_STEPS && stepsPerFrame <= MAX_STEPS) {
+        currentSettings.stepsPerFrame = stepsPerFrame;
+        document.getElementById('stepsPerFrameValue').textContent = currentSettings.stepsPerFrame;
+      }
+
+      // Update other live settings, ensuring valid ranges
+      if (!isNaN(trailWeight)) currentSettings.trailWeight = Math.max(0, trailWeight);
+      if (!isNaN(decayRate)) currentSettings.decayRate = Math.max(0, decayRate);
+      if (!isNaN(diffuseRate)) currentSettings.diffuseRate = Math.max(0, diffuseRate);
+      if (!isNaN(randomSteerStrength)) currentSettings.randomSteerStrength = Math.max(0, randomSteerStrength);
+      if (!isNaN(sleepThreshold)) currentSettings.sleepThreshold = Math.max(0, sleepThreshold);
+      if (!isNaN(wakeThreshold)) currentSettings.wakeThreshold = Math.max(0, wakeThreshold);
+      if (!isNaN(brightness)) currentSettings.brightness = Math.max(0, brightness);
+      if (!isNaN(contrast)) currentSettings.contrast = Math.max(0, contrast);
+
+      // Update display values next to sliders
+      document.getElementById('trailWeightValue').textContent = currentSettings.trailWeight.toFixed(1);
+      document.getElementById('decayRateValue').textContent = currentSettings.decayRate.toFixed(2);
+      document.getElementById('diffuseRateValue').textContent = currentSettings.diffuseRate.toFixed(1);
+      document.getElementById('randomSteerStrengthValue').textContent = currentSettings.randomSteerStrength.toFixed(1);
+      document.getElementById('sleepThresholdValue').textContent = currentSettings.sleepThreshold.toFixed(3);
+      document.getElementById('wakeThresholdValue').textContent = currentSettings.wakeThreshold.toFixed(3);
+      document.getElementById('brightnessValue').textContent = currentSettings.brightness.toFixed(2);
+      document.getElementById('contrastValue').textContent = currentSettings.contrast.toFixed(2);
+    }
+
+    /** Reads values from "Simulation Settings (需要重启)" UI controls and updates currentSettings. */
+    function updateRestartSettingsFromUI() {
+      const numAgents = parseInt(document.getElementById('numAgents').value, 10);
+      const width = parseInt(document.getElementById('width').value, 10);
+      const height = parseInt(document.getElementById('height').value, 10);
+      const spawnMode = parseInt(document.getElementById('spawnMode').value, 10);
+
+      // Update settings and clamp to reasonable values
+      if (!isNaN(numAgents)) currentSettings.numAgents = Math.max(1000, Math.min(5000000, numAgents)); // Increased max agents
+      if (!isNaN(width)) currentSettings.width = Math.max(128, Math.min(8192, width));
+      if (!isNaN(height)) currentSettings.height = Math.max(128, Math.min(4096, height));
+      if (!isNaN(spawnMode)) currentSettings.spawnMode = Math.max(0, Math.min(7, spawnMode)); // Ensure valid mode
+
+      // Update UI input fields to reflect clamped values
+      document.getElementById('numAgents').value = currentSettings.numAgents;
+      document.getElementById('width').value = currentSettings.width;
+      document.getElementById('height').value = currentSettings.height;
+      document.getElementById('spawnMode').value = currentSettings.spawnMode;
+    }
+
+    // --- Simulation Core ---
+
+    /** Cleans up all allocated WebGL resources. */
+    function cleanupWebGLResources() {
+      if (!gl) return;
+      console.log("Cleaning up WebGL resources...");
+
+      // Stop the animation loop
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+
+      // Unbind everything to avoid dangling references
+      gl.bindBuffer(gl.ARRAY_BUFFER, null);
+      gl.bindBuffer(gl.TRANSFORM_FEEDBACK_BUFFER, null);
+      gl.bindVertexArray(null);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.bindTexture(gl.TEXTURE_2D, null);
+      gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
+      gl.useProgram(null);
+
+      // Delete Buffers
+      if (agentBuffers[0]) gl.deleteBuffer(agentBuffers[0]);
+      if (agentBuffers[1]) gl.deleteBuffer(agentBuffers[1]);
+      if (quadVBO) gl.deleteBuffer(quadVBO);
+      agentBuffers = [null, null];
+      quadVBO = null;
+
+      // Delete VAOs
+      if (agentVAOs[0]) gl.deleteVertexArray(agentVAOs[0]);
+      if (agentVAOs[1]) gl.deleteVertexArray(agentVAOs[1]);
+      if (quadVAO) gl.deleteVertexArray(quadVAO);
+      agentVAOs = [null, null];
+      quadVAO = null;
+
+      // Delete Textures
+      if (trailTextures[0]) gl.deleteTexture(trailTextures[0]);
+      if (trailTextures[1]) gl.deleteTexture(trailTextures[1]);
+      if (tempTrailTexture) gl.deleteTexture(tempTrailTexture);
+      trailTextures = [null, null];
+      tempTrailTexture = null;
+
+      // Delete Framebuffers
+      if (trailFBOs[0]) gl.deleteFramebuffer(trailFBOs[0]);
+      if (trailFBOs[1]) gl.deleteFramebuffer(trailFBOs[1]);
+      if (tempTrailFBO) gl.deleteFramebuffer(tempTrailFBO);
+      trailFBOs = [null, null];
+      tempTrailFBO = null;
+
+      // Delete Programs
+      if (agentUpdateProgram) gl.deleteProgram(agentUpdateProgram);
+      if (agentDepositProgram) gl.deleteProgram(agentDepositProgram);
+      if (trailProcessHrzProgram) gl.deleteProgram(trailProcessHrzProgram);
+      if (trailProcessVrtProgram) gl.deleteProgram(trailProcessVrtProgram);
+      if (displayProgram) gl.deleteProgram(displayProgram);
+      agentUpdateProgram = null; agentDepositProgram = null; trailProcessHrzProgram = null; trailProcessVrtProgram = null; displayProgram = null;
+
+      // Delete Transform Feedback object
+      if (agentTransformFeedback) gl.deleteTransformFeedback(agentTransformFeedback);
+      agentTransformFeedback = null;
+
+      // Clear location caches
+      agentUpdateLocations = {}; agentDepositLocations = {}; trailProcessHrzLocations = {}; trailProcessVrtLocations = {}; displayLocations = {};
+
+      if (statusSpan) statusSpan.textContent = "Resources cleaned.";
+      isInitialized = false;
+      console.log("WebGL resources cleaned up.");
+    }
+
+    /** Initializes or restarts the simulation with currentSettings. */
+    function restartSimulation() {
+      // Ensure settings requiring restart are read from UI first
+      updateRestartSettingsFromUI();
+      console.log("Restarting simulation with settings:", JSON.parse(JSON.stringify(currentSettings)));
+      if (statusSpan) statusSpan.textContent = "Restarting...";
+
+      try {
+        // Clean up any existing resources before initializing new ones
+        cleanupWebGLResources();
+
+        // Get or Re-get WebGL context if lost
+        if (!gl || gl.isContextLost()) {
+          gl = canvas.getContext('webgl2', {
+            antialias: false,    // Not needed for this type of rendering
+            depth: false,        // No depth buffer needed
+            stencil: false,      // No stencil buffer needed
+            alpha: false,        // Canvas background is opaque
+            powerPreference: "high-performance" // Request high performance GPU if available
+          });
+          if (!gl) throw new Error("Failed to get WebGL 2.0 context on restart.");
+          console.log("Acquired WebGL 2.0 context.");
+        }
+
+        // Check for required extensions
+        if (!gl.getExtension('EXT_color_buffer_float')) {
+          throw new Error("WebGL Extension 'EXT_color_buffer_float' not supported!");
+        }
+        // Optional extensions (good to check, but might work without)
+        gl.getExtension('OES_texture_float_linear'); // For linear filtering on float textures
+        gl.getExtension('EXT_float_blend');         // For blending float framebuffers (additive blend)
+
+        // Set canvas dimensions and WebGL viewport
+        canvas.width = currentSettings.width;
+        canvas.height = currentSettings.height;
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+        if (statusSpan) statusSpan.textContent = "Compiling shaders...";
+        // --- Initialize Shader Programs ---
+        // Agent update requires Transform Feedback varyings to match the buffer layout
+        agentUpdateProgram = initShaderProgram(gl,
+          document.getElementById('agentUpdateVS').text,
+          document.getElementById('agentUpdateFS').text,
+          // Order MUST match the agent VBO structure!
+          ['v_out_position', 'v_out_angle', 'v_out_speciesIndex', 'v_out_speciesMask', 'v_out_status']
+        );
+        agentDepositProgram = initShaderProgram(gl, document.getElementById('agentDepositVS').text, document.getElementById('agentDepositFS').text);
+        trailProcessHrzProgram = initShaderProgram(gl, document.getElementById('trailProcessVS').text, document.getElementById('trailProcessHrzFS').text);
+        trailProcessVrtProgram = initShaderProgram(gl, document.getElementById('trailProcessVS').text, document.getElementById('trailProcessVrtFS').text);
+        displayProgram = initShaderProgram(gl, document.getElementById('displayVS').text, document.getElementById('displayFS').text);
+
+        // --- Get Uniform Locations ---
+        // Cache uniform locations for faster access in the loop
+        agentUpdateLocations = {
+          u_trailTexture: gl.getUniformLocation(agentUpdateProgram, 'u_trailTexture'),
+          u_resolution: gl.getUniformLocation(agentUpdateProgram, 'u_resolution'),
+          u_deltaTime: gl.getUniformLocation(agentUpdateProgram, 'u_deltaTime'),
+          u_time: gl.getUniformLocation(agentUpdateProgram, 'u_time'),
+          u_moveSpeed: gl.getUniformLocation(agentUpdateProgram, 'u_moveSpeed'),
+          u_turnSpeed: gl.getUniformLocation(agentUpdateProgram, 'u_turnSpeed'),
+          u_sensorAngleDeg: gl.getUniformLocation(agentUpdateProgram, 'u_sensorAngleDeg'),
+          u_sensorOffsetDst: gl.getUniformLocation(agentUpdateProgram, 'u_sensorOffsetDst'),
+          u_sensorSize: gl.getUniformLocation(agentUpdateProgram, 'u_sensorSize'),
+          u_randomSteerStrength: gl.getUniformLocation(agentUpdateProgram, 'u_randomSteerStrength'),
+          u_speciesInteractionMatrix: gl.getUniformLocation(agentUpdateProgram, 'u_speciesInteractionMatrix'),
+          u_sleepThreshold: gl.getUniformLocation(agentUpdateProgram, 'u_sleepThreshold'), // New sleep uniform
+          u_wakeThreshold: gl.getUniformLocation(agentUpdateProgram, 'u_wakeThreshold'), // New wake uniform
+        };
+        agentDepositLocations = {
+          u_resolution: gl.getUniformLocation(agentDepositProgram, 'u_resolution'),
+          u_trailWeight: gl.getUniformLocation(agentDepositProgram, 'u_trailWeight'),
+          u_deltaTime: gl.getUniformLocation(agentDepositProgram, 'u_deltaTime')
+        };
+        trailProcessHrzLocations = {
+          u_inputTrailTexture: gl.getUniformLocation(trailProcessHrzProgram, 'u_inputTrailTexture'),
+          u_resolution: gl.getUniformLocation(trailProcessHrzProgram, 'u_resolution'),
+          u_deltaTime: gl.getUniformLocation(trailProcessHrzProgram, 'u_deltaTime'),
+          u_diffuseRate: gl.getUniformLocation(trailProcessHrzProgram, 'u_diffuseRate')
+        };
+        trailProcessVrtLocations = {
+          u_horizontalPassTexture: gl.getUniformLocation(trailProcessVrtProgram, 'u_horizontalPassTexture'),
+          u_resolution: gl.getUniformLocation(trailProcessVrtProgram, 'u_resolution'),
+          u_deltaTime: gl.getUniformLocation(trailProcessVrtProgram, 'u_deltaTime'),
+          u_decayRate: gl.getUniformLocation(trailProcessVrtProgram, 'u_decayRate'),
+          u_diffuseRate: gl.getUniformLocation(trailProcessVrtProgram, 'u_diffuseRate')
+        };
+        displayLocations = {
+          u_trailTexture: gl.getUniformLocation(displayProgram, 'u_trailTexture'),
+          u_speciesColor: gl.getUniformLocation(displayProgram, 'u_speciesColor'),
+          u_numSpecies: gl.getUniformLocation(displayProgram, 'u_numSpecies'),
+          u_brightness: gl.getUniformLocation(displayProgram, 'u_brightness'),
+          u_contrast: gl.getUniformLocation(displayProgram, 'u_contrast')
+        };
+
+        // --- Prepare Species Uniform Data (Arrays) ---
+        let numSpecies = currentSettings.species.length;
+        if (numSpecies > MAX_SPECIES) {
+          console.warn(`Maximum ${MAX_SPECIES} species supported. Clamping.`);
+          numSpecies = MAX_SPECIES;
+        }
+        for (let i = 0; i < MAX_SPECIES; ++i) {
+          if (i < numSpecies) {
+            const s = currentSettings.species[i];
+            speciesMoveSpeed[i] = s.moveSpeed || 0;
+            speciesTurnSpeed[i] = s.turnSpeed || 0;
+            speciesSensorAngle[i] = s.sensorAngleDeg || 0;
+            speciesSensorOffset[i] = s.sensorOffsetDst || 0;
+            speciesSensorSize[i] = Math.max(0, s.sensorSize || 0); // Ensure non-negative
+            speciesColorData[i * 4 + 0] = s.colour.r || 0;
+            speciesColorData[i * 4 + 1] = s.colour.g || 0;
+            speciesColorData[i * 4 + 2] = s.colour.b || 0;
+            speciesColorData[i * 4 + 3] = s.colour.a ?? 1.0; // Default alpha to 1 if missing
+          } else {
+            // Zero out unused species data
+            speciesMoveSpeed[i] = 0; speciesTurnSpeed[i] = 0; speciesSensorAngle[i] = 0; speciesSensorOffset[i] = 0; speciesSensorSize[i] = 0;
+            speciesColorData.fill(0, i * 4, i * 4 + 4);
+          }
+        }
+
+        // Prepare interaction matrix (convert from row-major config to col-major for GLSL)
+        const defaultIdentityMatrix = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
+        const matrixSource = currentSettings.interactionMatrix || defaultIdentityMatrix;
+        // Basic validation
+        let matrixIsValid = Array.isArray(matrixSource) && matrixSource.length === 4 &&
+          matrixSource.every(row => Array.isArray(row) && row.length === 4);
+        if (matrixIsValid) {
+          for (let col = 0; col < 4; ++col) { // Iterate columns (outer loop for GLSL col-major)
+            for (let row = 0; row < 4; ++row) { // Iterate rows
+              speciesInteractionMatrixData[col * 4 + row] = matrixSource[row][col]; // Transpose
+            }
+          }
+        } else {
+          console.error("Invalid interaction matrix provided in settings. Using identity matrix.");
+          speciesInteractionMatrixData.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]); // Identity
+        }
+
+
+        // --- Initialize Agent Buffers & VAOs ---
+        if (statusSpan) statusSpan.textContent = "Initializing agents...";
+        const agentDataComponents = 9; // pos(2), angle(1), speciesIdx(1), mask(4), status(1)
+        const agentDataStride = agentDataComponents * Float32Array.BYTES_PER_ELEMENT; // 9 * 4 = 36 bytes
+        const agentDataBufferSize = currentSettings.numAgents * agentDataStride;
+        agentBuffers = [gl.createBuffer(), gl.createBuffer()];
+        agentVAOs = [gl.createVertexArray(), gl.createVertexArray()];
+        const initialAgentData = new Float32Array(currentSettings.numAgents * agentDataComponents);
+
+        // --- Agent Initialization Logic ---
+        const center = { x: currentSettings.width / 2.0, y: currentSettings.height / 2.0 };
+        const spawnMode = currentSettings.spawnMode;
+        const simWidth = currentSettings.width; const simHeight = currentSettings.height;
+        const PI = Math.PI; const PI2 = Math.PI * 2.0;
+        let clusterCenters = []; // For spawnMode 7
+        if (spawnMode === 7) { // Random Clusters
+          const numClusters = Math.floor(Math.random() * 5) + 3; // 3 to 7 clusters
+          const baseClusterRadius = Math.min(simWidth, simHeight) * 0.1;
+          const padding = baseClusterRadius * 1.5; // Ensure clusters aren't too close to edge or each other initially
+          for (let c = 0; c < numClusters; c++) {
+            // Avoid edges more carefully
+            const cx = padding + Math.random() * (simWidth - 2 * padding);
+            const cy = padding + Math.random() * (simHeight - 2 * padding);
+            const radiusMultiplier = 0.5 + Math.random(); // Vary cluster size
+            clusterCenters.push({ x: cx, y: cy, radius: baseClusterRadius * radiusMultiplier });
+          }
+          console.log(`Generated ${numClusters} clusters.`);
+        }
+
+        for (let i = 0; i < currentSettings.numAgents; ++i) {
+          const offset = i * agentDataComponents;
+          let startPosX = 0, startPosY = 0;
+          let startAngle = Math.random() * PI2; // Default random angle
+
+          // Determine start position based on spawn mode
+          const randomAngle = Math.random() * PI2;
+          const randomRadiusFactor = Math.sqrt(Math.random()); // Use sqrt for uniform area distribution in circles
+
+          switch (spawnMode) {
+            case 0: // Random
+              startPosX = Math.random() * simWidth; startPosY = Math.random() * simHeight; break;
+            case 1: // Point
+              startPosX = center.x; startPosY = center.y; break;
+            case 2: // InwardCircle
+            case 3: // RandomCircle
+              {
+                const circleRadiusMax = Math.min(simWidth, simHeight) * (spawnMode === 3 ? 0.15 : 0.45);
+                const circleRadius = circleRadiusMax * randomRadiusFactor;
+                const circleAngle = Math.random() * PI2;
+                startPosX = center.x + Math.cos(circleAngle) * circleRadius;
+                startPosY = center.y + Math.sin(circleAngle) * circleRadius;
+                if (spawnMode === 2) { startAngle = Math.atan2(center.y - startPosY, center.x - startPosX); } // Point inward
+              } break;
+            case 4: // Border Inward
+              {
+                const edge = Math.floor(Math.random() * 4); const randPos = Math.random();
+                switch (edge) {
+                  case 0: startPosX = randPos * simWidth; startPosY = simHeight - 1.0; break; // Top edge
+                  case 1: startPosX = randPos * simWidth; startPosY = 0.0; break;          // Bottom edge
+                  case 2: startPosX = 0.0; startPosY = randPos * simHeight; break;          // Left edge
+                  case 3: startPosX = simWidth - 1.0; startPosY = randPos * simHeight; break; // Right edge
+                }
+                startAngle = Math.atan2(center.y - startPosY, center.x - startPosX); // Point towards center
+              } break;
+            case 5: // Square Random
+              {
+                const squareSizeFactor = 0.7; // Size of the square relative to canvas
+                const minX = simWidth * (1.0 - squareSizeFactor) * 0.5;
+                const maxX = simWidth * (1.0 - (1.0 - squareSizeFactor) * 0.5);
+                const minY = simHeight * (1.0 - squareSizeFactor) * 0.5;
+                const maxY = simHeight * (1.0 - (1.0 - squareSizeFactor) * 0.5);
+                startPosX = minX + Math.random() * (maxX - minX);
+                startPosY = minY + Math.random() * (maxY - minY);
+              } break;
+            case 6: // Outward Circle
+              {
+                const circleRadiusMax = Math.min(simWidth, simHeight) * 0.45;
+                const circleRadius = circleRadiusMax * randomRadiusFactor;
+                const circleAngle = Math.random() * PI2;
+                startPosX = center.x + Math.cos(circleAngle) * circleRadius;
+                startPosY = center.y + Math.sin(circleAngle) * circleRadius;
+                const angleToCenter = Math.atan2(center.y - startPosY, center.x - startPosX);
+                startAngle = angleToCenter + PI; // Point outward (opposite direction)
+              } break;
+            case 7: // Random Clusters
+              {
+                if (clusterCenters.length > 0) {
+                  const cluster = clusterCenters[i % clusterCenters.length]; // Distribute agents among clusters
+                  const angle = Math.random() * PI2;
+                  const radius = cluster.radius * Math.sqrt(Math.random()); // Distribute within cluster radius
+                  startPosX = cluster.x + Math.cos(angle) * radius;
+                  startPosY = cluster.y + Math.sin(angle) * radius;
+                } else { // Fallback if no clusters generated
+                  startPosX = Math.random() * simWidth; startPosY = Math.random() * simHeight;
+                }
+              } break;
+            default: // Fallback to random
+              startPosX = Math.random() * simWidth; startPosY = Math.random() * simHeight; break;
+          }
+
+          // Assign species index and create one-hot mask
+          const speciesIndex = i % numSpecies;
+          const speciesMask = [0.0, 0.0, 0.0, 0.0];
+          if (speciesIndex < 4) speciesMask[speciesIndex] = 1.0;
+
+          // Clamp initial position to be within bounds
+          startPosX = Math.max(0.0, Math.min(simWidth - 1.0, startPosX));
+          startPosY = Math.max(0.0, Math.min(simHeight - 1.0, startPosY));
+
+          // Fill agent data buffer: pos(2), angle(1), speciesIdx(1), mask(4), status(1)
+          initialAgentData[offset + 0] = startPosX;
+          initialAgentData[offset + 1] = startPosY;
+          initialAgentData[offset + 2] = startAngle;
+          initialAgentData[offset + 3] = speciesIndex;
+          initialAgentData[offset + 4] = speciesMask[0];
+          initialAgentData[offset + 5] = speciesMask[1];
+          initialAgentData[offset + 6] = speciesMask[2];
+          initialAgentData[offset + 7] = speciesMask[3];
+          initialAgentData[offset + 8] = 0.0; // Initial status = active
+        }
+
+        // --- Setup Buffers and VAOs for ping-ponging ---
+        for (let i = 0; i < 2; ++i) { // Setup for both read and write buffers/VAOs
+          gl.bindVertexArray(agentVAOs[i]);
+          gl.bindBuffer(gl.ARRAY_BUFFER, agentBuffers[i]);
+          // Allocate buffer memory
+          gl.bufferData(gl.ARRAY_BUFFER, agentDataBufferSize, gl.DYNAMIC_DRAW);
+          // Upload initial data only to the first buffer (read buffer initially)
+          if (i === 0) {
+            gl.bufferSubData(gl.ARRAY_BUFFER, 0, initialAgentData);
+          }
+
+          // Define vertex attributes based on the interleaved data structure
+          let currentOffset = 0;
+          // Attribute 0: a_position (vec2)
+          gl.enableVertexAttribArray(0);
+          gl.vertexAttribPointer(0, 2, gl.FLOAT, false, agentDataStride, currentOffset);
+          currentOffset += 2 * Float32Array.BYTES_PER_ELEMENT; // Offset: 8
+          // Attribute 1: a_angle (float)
+          gl.enableVertexAttribArray(1);
+          gl.vertexAttribPointer(1, 1, gl.FLOAT, false, agentDataStride, currentOffset);
+          currentOffset += 1 * Float32Array.BYTES_PER_ELEMENT; // Offset: 12
+          // Attribute 2: a_speciesIndex (float)
+          gl.enableVertexAttribArray(2);
+          gl.vertexAttribPointer(2, 1, gl.FLOAT, false, agentDataStride, currentOffset);
+          currentOffset += 1 * Float32Array.BYTES_PER_ELEMENT; // Offset: 16
+          // Attribute 3: a_speciesMask (vec4)
+          gl.enableVertexAttribArray(3);
+          gl.vertexAttribPointer(3, 4, gl.FLOAT, false, agentDataStride, currentOffset);
+          currentOffset += 4 * Float32Array.BYTES_PER_ELEMENT; // Offset: 32
+          // Attribute 4: a_status (float) - New
+          gl.enableVertexAttribArray(4);
+          gl.vertexAttribPointer(4, 1, gl.FLOAT, false, agentDataStride, currentOffset);
+          // currentOffset += 1 * Float32Array.BYTES_PER_ELEMENT; // Offset: 36 (End)
+
+          // Unbind buffer and VAO after setup
+          gl.bindBuffer(gl.ARRAY_BUFFER, null);
+          gl.bindVertexArray(null);
+        }
+
+
+        // --- Initialize Trail Map Textures & FBOs ---
+        if (statusSpan) statusSpan.textContent = "Creating textures...";
+        // Use HALF_FLOAT for better precision/range than UNSIGNED_BYTE, less memory than FLOAT
+        const trailInternalFormat = gl.RGBA16F;
+        const trailFormat = gl.RGBA;
+        const trailType = gl.HALF_FLOAT; // Requires OES_texture_half_float / EXT_color_buffer_half_float
+        const trailFilter = gl.LINEAR;   // Use linear filtering for smoother results
+
+        // Create ping-pong textures, enabling mipmaps for them
+        trailTextures = [
+          createTexture(gl, currentSettings.width, currentSettings.height, trailInternalFormat, trailFormat, trailType, trailFilter, gl.CLAMP_TO_EDGE, true), // Enable Mipmap
+          createTexture(gl, currentSettings.width, currentSettings.height, trailInternalFormat, trailFormat, trailType, trailFilter, gl.CLAMP_TO_EDGE, true)  // Enable Mipmap
+        ];
+        // Create FBOs pointing to these textures
+        trailFBOs = [createFramebuffer(gl, trailTextures[0]), createFramebuffer(gl, trailTextures[1])];
+
+        // Create temporary texture/FBO for separable blur pass
+        tempTrailTexture = createTexture(gl, currentSettings.width, currentSettings.height, trailInternalFormat, trailFormat, trailType, trailFilter, gl.CLAMP_TO_EDGE, false); // Temp doesn't need mipmaps
+        tempTrailFBO = createFramebuffer(gl, tempTrailTexture);
+
+        // --- Clear initial textures to black ---
+        gl.bindFramebuffer(gl.FRAMEBUFFER, trailFBOs[0]);
+        gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, trailFBOs[1]);
+        gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, tempTrailFBO);
+        gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null); // Unbind FBO
+
+
+        // --- Initialize Fullscreen Quad VBO & VAO ---
+        const quadVertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]); // Covers entire screen in NDC
+        quadVBO = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, quadVBO);
+        gl.bufferData(gl.ARRAY_BUFFER, quadVertices, gl.STATIC_DRAW);
+        quadVAO = gl.createVertexArray();
+        gl.bindVertexArray(quadVAO);
+        // Attribute 0 for quad position
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); // 2 components per vertex, stride 0, offset 0
+        gl.bindBuffer(gl.ARRAY_BUFFER, null); // Unbind VBO
+        gl.bindVertexArray(null);             // Unbind VAO
+
+
+        // --- Initialize Transform Feedback Object ---
+        agentTransformFeedback = gl.createTransformFeedback();
+
+
+        // --- Reset State & Start Loop ---
+        readIndex = 0; writeIndex = 1; // Initial ping-pong state
+        isInitialized = true;
+        isPaused = false; // Start running
+        document.getElementById('pauseButton').textContent = '暂停 (Pause)';
+        lastTime = performance.now() / 1000.0; // Initialize time
+        frameCount = 0; fps = 0; lastFpsUpdateTime = lastTime; // Initialize FPS counter
+        if (statusSpan) statusSpan.textContent = `Running: ${currentSettings.name} (${currentSettings.numAgents} agents, ${numSpecies} species) @ -- FPS`;
+
+        // Start the simulation loop if not already running
+        if (!animationFrameId) {
+          simulationLoop(performance.now()); // Start first frame immediately
+        }
+
+      } catch (error) {
+        console.error("Initialization failed:", error);
+        const errorMsg = `错误 (Error): ${error.message}. Simulation cannot start.`;
+        if (statusSpan) statusSpan.textContent = errorMsg;
+        alert(errorMsg + "\n请检查控制台获取详细信息 (Check console for details).");
+        cleanupWebGLResources(); // Clean up any partially allocated resources
+        if (canvas) canvas.style.display = 'none'; // Hide canvas on fatal error
+      }
+    }
+
+
+    /** The main simulation and rendering loop. */
+    function simulationLoop(timestamp) {
+      // Request the next frame
+      animationFrameId = requestAnimationFrame(simulationLoop);
+
+      // Check if context is lost or not initialized
+      if (!isInitialized || !gl || gl.isContextLost()) {
+        if (gl && gl.isContextLost()) {
+          console.warn("WebGL context lost.");
+          if (statusSpan) statusSpan.textContent = "WebGL context lost. Please reload or restart.";
+          cleanupWebGLResources(); // Clean resources on context loss
+        }
+        return; // Stop the loop if context is lost
+      }
+
+      // Calculate delta time
+      currentTime = timestamp / 1000.0; // Convert ms to seconds
+      // Prevent large deltaTime spikes if tab was inactive, max 50ms (20 FPS min equivalent)
+      const deltaTime = isPaused ? 0 : Math.min(0.05, currentTime - lastTime);
+      lastTime = currentTime;
+
+      // --- Update FPS counter & Adaptive Steps ---
+      frameCount++;
+      if (currentTime - lastFpsUpdateTime >= 1.0) { // Update FPS roughly every second
+        fps = frameCount;
+        frameCount = 0;
+        lastFpsUpdateTime = currentTime;
+
+        // --- Adaptive Step Adjustment Logic ---
+        if (!isPaused) {
+          let stepChanged = false;
+          // Decrease steps if consistently below target FPS (more sensitive to drops)
+          if (fps < TARGET_FPS * 0.95 && currentSettings.stepsPerFrame > MIN_STEPS) {
+            currentSettings.stepsPerFrame--;
+            stepChanged = true;
+          }
+          // Increase steps if consistently above target FPS (less sensitive to spikes)
+          else if (fps > TARGET_FPS * 1.1 && currentSettings.stepsPerFrame < MAX_STEPS) {
+            currentSettings.stepsPerFrame++;
+            stepChanged = true;
+          }
+
+          // Update UI if steps changed
+          if (stepChanged) {
+            console.log("Adjusted steps per frame to:", currentSettings.stepsPerFrame);
+            document.getElementById('stepsPerFrame').value = currentSettings.stepsPerFrame;
+            document.getElementById('stepsPerFrameValue').textContent = currentSettings.stepsPerFrame;
+          }
+        }
+
+        // Update status display text
+        if (statusSpan) {
+          const speciesCount = currentSettings.species ? currentSettings.species.length : 0;
+          const statusText = isPaused
+            ? `Paused | ${currentSettings.numAgents} agents | ${speciesCount} species @ ${fps} FPS`
+            : `Running: ${currentSettings.name} | ${currentSettings.numAgents} agents | ${speciesCount} species @ ${fps} FPS (Steps: ${currentSettings.stepsPerFrame})`;
+          if (statusSpan.textContent !== statusText) statusSpan.textContent = statusText; // Avoid unnecessary DOM updates
+        }
+      }
+
+
+      // --- Run Simulation Steps Only if Not Paused and Time Has Advanced ---
+      if (!isPaused && deltaTime > 0) {
+        const actualSteps = Math.max(1, currentSettings.stepsPerFrame); // Use the potentially adapted steps
+        const dtStep = deltaTime / actualSteps; // Delta time for each substep
+        const numAgents = currentSettings.numAgents;
+        const width = currentSettings.width;
+        const height = currentSettings.height;
+
+        // Common GL setup for simulation steps
+        gl.disable(gl.DEPTH_TEST);
+        gl.disable(gl.STENCIL_TEST);
+        gl.disable(gl.BLEND); // Blend only enabled for deposit step
+
+
+        // --- Simulation Substeps Loop ---
+        for (let step = 0; step < actualSteps; ++step) {
+          const stepTime = currentTime + step * dtStep; // Time for this specific substep (for random seed)
+
+          // --- 1. Agent Update Step (Using Transform Feedback) ---
+          gl.useProgram(agentUpdateProgram);
+          gl.bindVertexArray(agentVAOs[readIndex]); // Read from the 'read' VAO/VBO
+
+          // Bind the current trail texture (read state) to texture unit 0
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, trailTextures[readIndex]); // Read from potentially mipmapped texture
+
+          // Set uniforms for agent update shader
+          gl.uniform1i(agentUpdateLocations.u_trailTexture, 0); // Texture unit 0
+          gl.uniform2f(agentUpdateLocations.u_resolution, width, height);
+          gl.uniform1f(agentUpdateLocations.u_deltaTime, dtStep);
+          gl.uniform1f(agentUpdateLocations.u_time, stepTime);
+          gl.uniform1fv(agentUpdateLocations.u_moveSpeed, speciesMoveSpeed);
+          gl.uniform1fv(agentUpdateLocations.u_turnSpeed, speciesTurnSpeed);
+          gl.uniform1fv(agentUpdateLocations.u_sensorAngleDeg, speciesSensorAngle);
+          gl.uniform1fv(agentUpdateLocations.u_sensorOffsetDst, speciesSensorOffset);
+          gl.uniform1iv(agentUpdateLocations.u_sensorSize, speciesSensorSize);
+          gl.uniform1f(agentUpdateLocations.u_randomSteerStrength, currentSettings.randomSteerStrength);
+          gl.uniformMatrix4fv(agentUpdateLocations.u_speciesInteractionMatrix, false, speciesInteractionMatrixData);
+          gl.uniform1f(agentUpdateLocations.u_sleepThreshold, currentSettings.sleepThreshold);
+          gl.uniform1f(agentUpdateLocations.u_wakeThreshold, currentSettings.wakeThreshold);
+
+          // Setup Transform Feedback
+          gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, agentTransformFeedback);
+          // Bind the 'write' buffer as the output for transform feedback
+          gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, agentBuffers[writeIndex]);
+
+          // Disable rasterization - we only care about the vertex shader output via TF
+          gl.enable(gl.RASTERIZER_DISCARD);
+
+          // Begin transform feedback, run vertex shader for all agents
+          gl.beginTransformFeedback(gl.POINTS);
+          gl.drawArrays(gl.POINTS, 0, numAgents);
+          gl.endTransformFeedback();
+
+          // Re-enable rasterization for subsequent steps
+          gl.disable(gl.RASTERIZER_DISCARD);
+
+          // Unbind transform feedback buffers and object
+          gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null);
+          gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null);
+          gl.bindVertexArray(null); // Unbind VAO
+          gl.bindTexture(gl.TEXTURE_2D, null); // Unbind texture
+
+
+          // --- 2. Agent Deposit Step ---
+          gl.useProgram(agentDepositProgram);
+          // Render to the *next* read texture (which is currently the write texture)
+          gl.bindFramebuffer(gl.FRAMEBUFFER, trailFBOs[writeIndex]);
+          gl.viewport(0, 0, width, height); // Set viewport to texture size
+
+          // Set uniforms
+          gl.uniform2f(agentDepositLocations.u_resolution, width, height);
+          gl.uniform1f(agentDepositLocations.u_trailWeight, currentSettings.trailWeight);
+          gl.uniform1f(agentDepositLocations.u_deltaTime, dtStep);
+
+          // Enable additive blending
+          gl.enable(gl.BLEND);
+          gl.blendEquation(gl.FUNC_ADD); // Color = SrcColor * SrcAlpha + DstColor * DstAlpha
+          gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ONE, gl.ONE); // Add SrcColor * 1 + DstColor * 1
+
+          // Use the VAO associated with the *updated* agent positions (the 'write' buffer)
+          gl.bindVertexArray(agentVAOs[writeIndex]);
+          // Draw points (each agent deposits one point)
+          gl.drawArrays(gl.POINTS, 0, numAgents);
+
+          // Disable blending and unbind VAO
+          gl.disable(gl.BLEND);
+          gl.bindVertexArray(null);
+
+
+          // --- 3. Trail Processing Step (Separable Blur + Decay) ---
+          // --- 3a. Horizontal Blur Pass ---
+          gl.useProgram(trailProcessHrzProgram);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, tempTrailFBO); // Render to temporary FBO
+          gl.activeTexture(gl.TEXTURE0);
+          // Read from the texture that was just deposited onto
+          gl.bindTexture(gl.TEXTURE_2D, trailTextures[writeIndex]);
+          // Set uniforms
+          gl.uniform1i(trailProcessHrzLocations.u_inputTrailTexture, 0);
+          gl.uniform2f(trailProcessHrzLocations.u_resolution, width, height);
+          gl.uniform1f(trailProcessHrzLocations.u_deltaTime, dtStep);
+          gl.uniform1f(trailProcessHrzLocations.u_diffuseRate, currentSettings.diffuseRate);
+          // Draw fullscreen quad
+          gl.bindVertexArray(quadVAO);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          gl.bindTexture(gl.TEXTURE_2D, null); // Unbind texture
+
+          // --- 3b. Vertical Blur + Decay + Clamp Pass ---
+          gl.useProgram(trailProcessVrtProgram);
+          // Render the final result to the *original* read FBO, making it ready for the next frame's read
+          gl.bindFramebuffer(gl.FRAMEBUFFER, trailFBOs[readIndex]);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, tempTrailTexture); // Read from the temporary texture (result of horizontal pass)
+          // Set uniforms
+          gl.uniform1i(trailProcessVrtLocations.u_horizontalPassTexture, 0);
+          gl.uniform2f(trailProcessVrtLocations.u_resolution, width, height);
+          gl.uniform1f(trailProcessVrtLocations.u_deltaTime, dtStep);
+          gl.uniform1f(trailProcessVrtLocations.u_decayRate, currentSettings.decayRate);
+          gl.uniform1f(trailProcessVrtLocations.u_diffuseRate, currentSettings.diffuseRate);
+          // Draw fullscreen quad (quadVAO is likely still bound, but binding explicitly is safer)
+          gl.bindVertexArray(quadVAO);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+          // --- ** Regenerate Mipmaps for the updated texture ** ---
+          // This is crucial for the mipmapping optimization to work correctly.
+          // The texture `trailTextures[readIndex]` now holds the fully updated trail map for this step.
+          gl.bindTexture(gl.TEXTURE_2D, trailTextures[readIndex]); // Bind the texture that was just written to
+          gl.generateMipmap(gl.TEXTURE_2D); // Regenerate all mip levels
+          gl.bindTexture(gl.TEXTURE_2D, null); // Unbind texture
+
+          // Unbind resources for trail processing
+          gl.bindVertexArray(null);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null); // Unbind FBO
+
+
+          // --- 4. Swap Read/Write Indices for next substep/frame ---
+          [readIndex, writeIndex] = [writeIndex, readIndex];
+
+        } // End of simulation substeps loop
+      } // End if !isPaused
+
+
+      // --- 5. Display Step (Render final trail map to canvas) ---
+      gl.useProgram(displayProgram);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null); // Render to the default framebuffer (the canvas)
+      gl.viewport(0, 0, gl.canvas.width, gl.canvas.height); // Set viewport to canvas size
+
+      // Bind the final trail texture (current read texture)
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, trailTextures[readIndex]);
+
+      // Texture filtering for display is handled by parameters set during texture creation
+      // (LINEAR_MIPMAP_LINEAR if mipmaps were enabled)
+
+      // Set display uniforms
+      gl.uniform1i(displayLocations.u_trailTexture, 0);
+      gl.uniform4fv(displayLocations.u_speciesColor, speciesColorData);
+      gl.uniform1i(displayLocations.u_numSpecies, currentSettings.species ? currentSettings.species.length : 0);
+      gl.uniform1f(displayLocations.u_brightness, currentSettings.brightness);
+      gl.uniform1f(displayLocations.u_contrast, currentSettings.contrast);
+
+      // Draw fullscreen quad
+      gl.bindVertexArray(quadVAO);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      // Unbind resources
+      gl.bindTexture(gl.TEXTURE_2D, null);
+      gl.bindVertexArray(null);
+
+    } // End simulationLoop
+
+    // --- Initialization and Event Listeners ---
+    /** Sets up UI event listeners. */
+    function initControls() {
+      const presetSelect = document.getElementById('presetSelect');
+      const restartButton = document.getElementById('restartButton');
+      const pauseButton = document.getElementById('pauseButton');
+
+      // Live parameter inputs
+      const stepsInput = document.getElementById('stepsPerFrame');
+      const trailWeightInput = document.getElementById('trailWeight');
+      const decayRateInput = document.getElementById('decayRate');
+      const diffuseRateInput = document.getElementById('diffuseRate');
+      const randomSteerStrengthInput = document.getElementById('randomSteerStrength');
+      const sleepThresholdInput = document.getElementById('sleepThreshold'); // New sleep input
+      const wakeThresholdInput = document.getElementById('wakeThreshold'); // New wake input
+      const brightnessInput = document.getElementById('brightness');
+      const contrastInput = document.getElementById('contrast');
+
+      // --- Event Listeners ---
+      // Preset selection
+      presetSelect.addEventListener('change', (e) => {
+        const presetKey = e.target.value;
+        if (simulationPresets[presetKey]) {
+          // Deep copy the preset to avoid modifying the original object
+          currentSettings = JSON.parse(JSON.stringify(simulationPresets[presetKey]));
+          // Ensure new settings have defaults if missing in preset
+          currentSettings.sleepThreshold = currentSettings.sleepThreshold ?? 0.01;
+          currentSettings.wakeThreshold = currentSettings.wakeThreshold ?? 0.05;
+          updateUIControls(); // Update UI to reflect loaded preset
+          restartSimulation(); // Restart with new settings
+        }
+      });
+
+      // Restart button
+      restartButton.addEventListener('click', () => {
+        updateRestartSettingsFromUI(); // Read restart-related UI values first
+        restartSimulation();
+      });
+
+      // Pause button
+      pauseButton.addEventListener('click', () => {
+        isPaused = !isPaused;
+        pauseButton.textContent = isPaused ? '恢复 (Resume)' : '暂停 (Pause)';
+        // Immediately update status text on pause/resume
+        if (statusSpan) {
+          const speciesCount = currentSettings.species ? currentSettings.species.length : 0;
+          const statusText = isPaused
+            ? `Paused | ${currentSettings.numAgents} agents | ${speciesCount} species @ ${fps} FPS`
+            : `Running: ${currentSettings.name} | ${currentSettings.numAgents} agents | ${speciesCount} species @ ${fps} FPS (Steps: ${currentSettings.stepsPerFrame})`;
+          statusSpan.textContent = statusText;
+        }
+        // If resuming, reset lastTime to avoid large deltaTime jump
+        if (!isPaused) {
+          lastTime = performance.now() / 1000.0;
+          if (!animationFrameId) simulationLoop(performance.now()); // Ensure loop is running if it stopped
+        }
+      });
+
+      // Add 'input' event listeners for live parameter sliders
+      stepsInput.addEventListener('input', updateLiveSettingsFromUI);
+      trailWeightInput.addEventListener('input', updateLiveSettingsFromUI);
+      decayRateInput.addEventListener('input', updateLiveSettingsFromUI);
+      diffuseRateInput.addEventListener('input', updateLiveSettingsFromUI);
+      randomSteerStrengthInput.addEventListener('input', updateLiveSettingsFromUI);
+      sleepThresholdInput.addEventListener('input', updateLiveSettingsFromUI); // Listener for sleep
+      wakeThresholdInput.addEventListener('input', updateLiveSettingsFromUI); // Listener for wake
+      brightnessInput.addEventListener('input', updateLiveSettingsFromUI);
+      contrastInput.addEventListener('input', updateLiveSettingsFromUI);
+
+      // Initialize with the default preset ('A')
+      currentSettings = JSON.parse(JSON.stringify(simulationPresets['A']));
+      currentSettings.sleepThreshold = currentSettings.sleepThreshold ?? 0.01; // Ensure defaults exist
+      currentSettings.wakeThreshold = currentSettings.wakeThreshold ?? 0.05;
+      updateUIControls(); // Set initial UI state
+    }
+
+    /** Main entry point, called when the page loads. */
+    function main() {
+      canvas = document.getElementById('glcanvas');
+      statusSpan = document.getElementById('status');
+
+      if (!canvas) { console.error("Fatal Error: Canvas element not found!"); alert("错误：找不到 Canvas！"); return; }
+      if (!statusSpan) console.warn("Status display element not found.");
+
+      try {
+        // Basic WebGL2 and extension check before proceeding
+        const testGl = canvas.getContext('webgl2');
+        if (!testGl) throw new Error("WebGL 2.0 not supported.");
+        if (!testGl.getExtension('EXT_color_buffer_float')) throw new Error("'EXT_color_buffer_float' not supported.");
+        // If basic checks pass, initialize controls and start the simulation
+        initControls();
+        restartSimulation(); // Start the simulation with default preset
+      } catch (error) {
+        console.error("Initialization check failed:", error);
+        const errorMsg = `错误 (Error): ${error.message}.`;
+        if (statusSpan) statusSpan.textContent = errorMsg;
+        alert(`${errorMsg}\n请确保您的浏览器支持 WebGL 2.0 和必要的扩展 (Please ensure your browser supports WebGL 2.0 and required extensions).`);
+        if (canvas) canvas.style.display = 'none'; // Hide canvas on fatal error
+        cleanupWebGLResources(); // Attempt cleanup even on init error
+      }
+    }
+
+    // --- Run main function on window load ---
+    window.onload = main;
+
+    // --- WebGL Context Loss Handling ---
+    if (canvas) {
+      canvas.addEventListener('webglcontextlost', (event) => {
+        console.warn('WebGL context lost!');
+        event.preventDefault(); // Prevent default browser behavior
+        if (statusSpan) statusSpan.textContent = "WebGL context lost! Needs restart.";
+        if (animationFrameId) cancelAnimationFrame(animationFrameId); // Stop loop
+        animationFrameId = null;
+        isInitialized = false; // Mark as uninitialized
+        cleanupWebGLResources(); // Clean up resources
+        // Note: Automatic restoration often requires a full re-initialization (like restartSimulation).
+        // For simplicity, we just inform the user and stop.
+      }, false);
+
+      // Optional: Handle context restoration (less common for complex apps)
+      // canvas.addEventListener('webglcontextrestored', () => {
+      //   console.log('WebGL context restored.');
+      //   // Requires full re-initialization of shaders, buffers, textures etc.
+      //   // Might call restartSimulation() here.
+      //   if (statusSpan) statusSpan.textContent = "WebGL context restored. Restarting...";
+      //   restartSimulation();
+      // }, false);
+    }
+
+  </script>
+</body>
+
+</html>
